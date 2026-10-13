@@ -1,0 +1,18 @@
+{
+  "cost_fp": 1,
+  "cost_fn": 3,
+  "results": [
+    {
+      "model": "Naive baseline",
+      "roc_auc": 0.5,
+      "pr_auc": 0.19137466307277629,
+      "threshold": 1.0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 355,
+      "tn": 1500,
+      "business_cost": 1065,
+      "cost_per_date": 0.5741239892183289
+    }
+  ]
+}

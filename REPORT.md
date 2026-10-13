@@ -24,7 +24,7 @@ is possible to predict outcomes like a mutual match.
 
 ## Business / real-life framing
 
-This model helps a speed dating organiser. During each event every participant writes a scorecard that rates each partner. Many participants, however, only send their yes/no answers days later, or they never send them. The morning after the event, the organiser uses the model to decide which pairs are likely to match mutually. The organiser then sends a "you two should talk" nudge to those pairs while interest is still fresh. Because the model makes predictions after the dates, the model can use both profile information (age, field of study, race, stated preferences, self-ratings, how often each person goes out) and the scorecard ratings each person gave their partner. The question the model tests is whether a mutual match can be predicted from how the date went, not only from who the people are. I expected a real but moderate signal.
+This model helps a speed dating organiser. During each event every participant writes a scorecard that rates each partner. Many participants, however, only send their yes/no answers days later, or they never send them. The morning after the event, the organiser uses the model to decide which pairs are likely to match mutually. The organiser then sends a "you two should talk" nudge to those pairs while interest is still fresh. Because the model makes predictions after the dates, the model can use both profile information (age, field of study, race, stated preferences, self ratings, how often each person goes out) and the scorecard ratings each person gave their partner. The question the model tests is whether a mutual match can be predicted from how the date went, not only from who the people are. I expected a real but moderate signal.
 
 **Target.** The target is `match`, which is set to 1 when both participants said yes. I dropped `male_decision` and `female_decision` because `match` is computed directly from those two decisions, so keeping them would leak the answer into the features.
 
@@ -40,6 +40,9 @@ This model helps a speed dating organiser. During each event every participant w
 the way — e.g. "segment X had defective data, so I excluded it and used a
 population-average default for scope Y at inference time; the impact of
 that choice is Z."*
+
+I expected calibration to help, but grouped CV showed it slightly lowered
+PR-AUC, so I removed it.
 
 ## Modeling: three implementations, one model
 
