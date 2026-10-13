@@ -179,9 +179,51 @@ small validation set (18 events), not from the model.
 
 ## Limitations & next steps
 
-*Real limitations you found, and concretely how you'd address each one with
-more time or data — not generic hedging.*
+**Synthetic data.** The patterns I found describe the generator, not real
+daters, so the results show whether the method can find a signal, not how
+attraction works. For example, preference-weighted ratings helped here, but
+they may not in real data. With more time I would run the same pipeline on
+real event data, such as the original Columbia speed-dating data, and compare
+the size of the signal.
+
+**Small validation set.** The validation set has only 18 events, so the chosen
+threshold could change with a different split. This already happened between
+implementations: `nn.Module` / `optim` picked 0.22 instead of 0.29 because the
+validation cost curve is almost flat, which raised its test cost from 841 to
+898 even though its predictions are the same. I would use repeated
+event-grouped CV over all 102 training and validation events, choose the
+threshold on pooled out-of-fold predictions, and report the spread across
+folds.
+
+**Feature decisions rest on small differences.** The fold-to-fold standard
+deviation of CV PR-AUC is about 0.007–0.009, while most feature-group effects
+were smaller than that (both-interested −0.0005, calibration −0.003, one-hot
+−0.001). Even the preference-weighted gain (+0.006) is within about one
+standard deviation. I would repeat the grouped CV with several random event
+shuffles and compare feature sets fold by fold, keeping a group only if it
+wins consistently.
+
+**Modest PR-AUC.** A test PR-AUC of 0.403 (ROC-AUC 0.70) means the model is
+far from perfect: at the chosen threshold it nudges 408 pairs, of which only
+158 (39%) actually match, and it misses 197 of the 355 real matches. Logistic
+regression can only use the interactions I build by hand, so I would try
+gradient boosting, which finds interactions itself, and compare it on the same
+grouped CV.
+
+**Assumed cost ratio.** The 3× ratio is my assumption, and the best threshold
+moves with it. The dashboard already lets the user change both costs and
+watch the cost curve and threshold respond; as a next step I would report the
+cost-minimising threshold for 2×, 3× and 5× to show how sensitive the decision
+is, and estimate the true ratio from the organiser's data on how nudges affect
+retention.
+
+**Hypothetical scenario.** The idea that decisions arrive late is an
+assumption I made, not something in the data. In practice, scorecards may also
+be missing for some participants. I would test how performance changes when
+some scorecard ratings are missing, and compare against a profile-only model
+that could run before the date (CV PR-AUC 0.237, barely above the 0.198
+baseline).
 
 ## Generative AI use disclosure
 
-*Per the syllabus AI Policy: what you used and how, or "no AI content used."*
+I used Claude (Anthropic) throughout this assignment. It helped me choose the dataset, wrote the pipeline and dashboard code, investigated why coefficients differ between implementations, and corrected and formatted wording in this report. It also suggested initial reasoning for the scenario and for my feature decisions, which I reviewed and edited. The framing, the 3:1 cost ratio, and the keep and drop decisions on features are mine, and I based them on the grouped CV results. I also re ran the notebook, confirmed no person appears in two splits, compared the results with the naive baseline. Lastly I also wrote the analysis in the report. 
