@@ -1,6 +1,67 @@
 {
   "cost_fp": 1,
   "cost_fn": 3,
+  "features": [
+    "male_age",
+    "female_age",
+    "age_gap",
+    "same_race",
+    "same_field",
+    "male_pref_attr",
+    "male_pref_intel",
+    "female_pref_attr",
+    "female_pref_intel",
+    "male_self_attr",
+    "female_self_attr",
+    "male_goes_out_ord",
+    "female_goes_out_ord",
+    "shared_interests",
+    "attr_of_female",
+    "sinc_of_female",
+    "intel_of_female",
+    "fun_of_female",
+    "amb_of_female",
+    "attr_of_male",
+    "sinc_of_male",
+    "intel_of_male",
+    "fun_of_male",
+    "amb_of_male",
+    "min_attr",
+    "min_sinc",
+    "min_intel",
+    "min_fun",
+    "min_amb",
+    "overall_by_male",
+    "overall_by_female",
+    "min_overall",
+    "prod_attr",
+    "prod_overall",
+    "male_wtd_attr",
+    "male_wtd_intel",
+    "female_wtd_attr",
+    "female_wtd_intel"
+  ],
+  "best_C": 1.0,
+  "lambda": 9.373828271466067e-05,
+  "manual_lr": 1.0,
+  "standard_lr": 1.0,
+  "epochs": 3000,
+  "thresholds": {
+    "Naive baseline": 1.0,
+    "scikit-learn": 0.23,
+    "Manual PyTorch": 0.24,
+    "Standard PyTorch": 0.24
+  },
+  "intercepts": {
+    "sklearn": -1.632726788520813,
+    "manual_torch": -1.6315102577209473,
+    "standard_torch": -1.6314820051193237
+  },
+  "training_objective": {
+    "sklearn": 0.4419696213374091,
+    "manual_torch": 0.44197414710734745,
+    "standard_torch": 0.44197529702616817
+  },
   "results": [
     {
       "model": "Naive baseline",
@@ -12,7 +73,47 @@
       "fn": 355,
       "tn": 1500,
       "business_cost": 1065,
-      "cost_per_date": 0.5741239892183289
+      "cost_per_date": 0.5741239892183289,
+      "val_pr_auc": 0.18879353861686018
+    },
+    {
+      "model": "scikit-learn",
+      "roc_auc": 0.6999380281690141,
+      "pr_auc": 0.4093425180932366,
+      "threshold": 0.23,
+      "tp": 203,
+      "fp": 420,
+      "fn": 152,
+      "tn": 1080,
+      "business_cost": 876,
+      "cost_per_date": 0.47223719676549863,
+      "val_pr_auc": 0.38295663382829576
+    },
+    {
+      "model": "Manual PyTorch",
+      "roc_auc": 0.6998948356807512,
+      "pr_auc": 0.40958699077404703,
+      "threshold": 0.24,
+      "tp": 192,
+      "fp": 380,
+      "fn": 163,
+      "tn": 1120,
+      "business_cost": 869,
+      "cost_per_date": 0.46846361185983826,
+      "val_pr_auc": 0.3822687012367722
+    },
+    {
+      "model": "Standard PyTorch",
+      "roc_auc": 0.6998760563380282,
+      "pr_auc": 0.4095557714060356,
+      "threshold": 0.24,
+      "tp": 192,
+      "fp": 380,
+      "fn": 163,
+      "tn": 1120,
+      "business_cost": 869,
+      "cost_per_date": 0.46846361185983826,
+      "val_pr_auc": 0.38226432574987773
     }
   ]
 }

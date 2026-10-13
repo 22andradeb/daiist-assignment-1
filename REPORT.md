@@ -51,6 +51,18 @@ comparing scikit-learn, the manual PyTorch loop, and the standard
 torch.nn.Module/torch.optim workflow, on the same test set, against the
 naive baseline. Do the three agree? If not, why not?*
 
+**Coefficient differences.** A few coefficients differ between scikit-learn
+and the two PyTorch versions (e.g. `prod_overall` −0.42 vs. −0.31,
+`overall_by_male` 0.21 vs. 0.09), even though their predictions and training
+objective are almost identical. The cause is perfect multicollinearity:
+`overall_by_male` and `overall_by_female` are exactly the average of five raw
+ratings that are also features, so many coefficient combinations give the same
+predictions. Gradient descent approaches the regularised optimum very slowly
+along this flat direction, while scikit-learn's solver reaches it. I chose to
+keep these features and explain the difference rather than drop them. Dropping
+them would make the three implementations agree more closely, but would need
+another grouped-CV check.
+
 ## Limitations & next steps
 
 *Real limitations you found, and concretely how you'd address each one with
