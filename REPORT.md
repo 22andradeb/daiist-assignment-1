@@ -106,26 +106,73 @@ features: the base set plus the four preference-weighted features.
 
 ## Modeling: three implementations, one model
 
-*Which model (linear or logistic regression) and why. A results table
-comparing scikit-learn, the manual PyTorch loop, and the standard
-torch.nn.Module/torch.optim workflow, on the same test set, against the
-naive baseline. Do the three agree? If not, why not?*
+**Why logistic regression.** The target is binary, and I need a probability
+for each pair, not just a class, because the organiser's decision depends on a
+cost-based threshold. Linear regression can output values below 0 or above 1
+and is not fitted to a yes/no outcome, so it cannot give a trustworthy
+probability. Logistic regression also has interpretable coefficients, which
+helps me say which parts of a date relate to a match.
 
-**Do the three agree?** Yes. On the final 28 features, the three
-implementations reach the same training objective (0.44354), their
-coefficients differ by at most 0.001 and their test probabilities by at most
-0.0005. An earlier version with the "both interested" features did not agree
-as well: `overall_by_male` and `overall_by_female` are exact averages of five
-raw ratings that were also features (perfect multicollinearity), so many
-coefficient combinations gave the same predictions, and gradient descent
-approached the regularised optimum much more slowly along that flat direction
-than scikit-learn's solver (coefficients differed by up to 0.12). Dropping
-that group removed the problem.
+**Implementations and how I made them comparable.** I fitted the same model
+three ways: scikit-learn, a manual PyTorch loop, and the standard
+`torch.nn.Module` / `torch.optim` workflow. To compare them fairly, I used the
+same 28 features (standardised with training-set statistics) and the same L2
+penalty. scikit-learn's regularisation strength C = 0.1 was chosen by grouped
+CV; the equivalent PyTorch penalty is λ = 1/(C·n) = 0.00094, which makes the
+PyTorch loss equal to scikit-learn's objective divided by C·n, so both have the
+same optimum. None of them penalises the intercept.
+The PyTorch versions use full-batch gradient descent with learning rate 0.5
+for 3,000 epochs. I tried 0.05, 0.1, 0.5 and 1.0 and chose 0.5 because it
+reached the lowest training loss (1.0 was equally good); the loss stopped
+improving after about 1,100–1,300 epochs, so 3,000 leaves a safe margin. For
+each model I picked the threshold that minimises FP×1 + FN×3 on the
+validation set and then evaluated once on the test set.
 
-**Why Standard PyTorch has a different confusion matrix.** Although its
+| Implementation | Test ROC-AUC | Test PR-AUC | Threshold | Test cost (FP×1 + FN×3) |
+|---|---|---|---|---|
+| scikit-learn | 0.696 | 0.403 | 0.29 | 841 |
+| Manual PyTorch loop | 0.696 | 0.403 | 0.29 | 841 |
+| `nn.Module` / `optim` | 0.696 | 0.403 | 0.22 | 898 |
+| Naive baseline | 0.500 | 0.191 | n/a (nudge no one) | 1,065 |
+
+**Do the three agree?** Yes, the models agree; only the chosen threshold
+differs (explained below). Their predictions agree: the maximum absolute
+difference in predicted probability is 0.0005, and ROC-AUC and PR-AUC are the
+same to 3 decimals. The final training losses match to 7 decimals (0.4435409
+for all three), and the coefficients differ by at most 0.001. The best model
+reaches a test PR-AUC of 0.403 against a baseline of 0.191, roughly double,
+which fits my expectation of a real but moderate signal. It lowers the test
+cost from 1,065 to 841 (−21%).
+
+**What the coefficients say.** Because all features are standardised, the
+coefficients can be compared directly. The strongest is `shared_interests`
+(+0.53): feeling that you have interests in common relates to a match more than
+any single rating. Next come the preference-weighted attractiveness ratings
+(+0.45 when the female is the rater, +0.33 when the male is): being found
+attractive by someone who says attractiveness matters to them. Stated
+preferences on their own are negative (−0.34 female, −0.23 male), which is the
+"context" effect from Decision 5: for the same weighted score, a person who
+claims to care a lot about an attribute is harder to impress. Fun and
+sincerity ratings add smaller positive effects (about +0.19 each). These are
+associations in synthetic data, not causes.
+
+**Coefficient differences in an earlier version.** Before I dropped the "both
+interested" features, a few coefficients differed between scikit-learn and the
+two PyTorch versions (e.g. `prod_overall` −0.42 vs. −0.31, `overall_by_male`
+0.21 vs. 0.09), even though their predictions and training objective were
+almost identical. The cause was perfect multicollinearity: `overall_by_male`
+and `overall_by_female` are exactly the average of five raw ratings that were
+also features, so many coefficient combinations gave the same predictions.
+Gradient descent approaches the regularised optimum very slowly along this
+flat direction, while scikit-learn's solver reaches it. Dropping that group
+(for the reasons in Decision 1) removed the problem, which is why the final
+coefficients agree.
+
+**Why `nn.Module` / `optim` has a different threshold.** Although its
 probabilities match the other two almost exactly, its cost-minimising
 validation threshold came out at 0.22 instead of 0.29. The validation cost
-curve is very flat between those values (891–894 vs. 893), so a 2-point
+curve is very flat between those values: at 0.22 it is 891 for this model
+(894 for scikit-learn), and at 0.29 it is 893 for both, so a 2-point
 difference decides which threshold "wins." On the test set this changes the
 cost from 841 to 898. The difference comes from threshold selection on a
 small validation set (18 events), not from the model.
