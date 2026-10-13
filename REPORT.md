@@ -32,17 +32,77 @@ This model helps a speed dating organiser. During each event every participant w
 
 **Metric for comparing models.** To compare models independently of the threshold, I used ROC‑AUC and PR‑AUC. PR‑AUC is especially suitable because matches are relatively rare (19.6% of dates). Accuracy would be misleading because a model that always predicts "no match" already scores about 80%.
 
-**Split.** I did not use a time‑based split. The data has no dates and `event_id` is only an identifier, so there is no "future" that could leak into training. Instead I split by `event_id`, keeping whole events together in train, validation or test. Each participant has 6–15 dates (11 on average) within a single event. A random split would place the same person in both train and test. The model could then memorise individuals instead of learning general patterns, which would inflate the test score.
+**Split.** I did not use a time based split. The data has no dates and `event_id` is only an identifier, so there is no "future" that could leak into training. Instead I split by `event_id`, keeping whole events together in train, validation or test. Each participant has 6–15 dates (11 on average) within a single event. A random split would place the same person in both train and test. The model could then memorise individuals instead of learning general patterns, which would inflate the test score.
 
 ## Data preparation & feature engineering
 
-*What you engineered and why, and any data-quality decisions you made along
-the way — e.g. "segment X had defective data, so I excluded it and used a
-population-average default for scope Y at inference time; the impact of
-that choice is Z."*
+**Data quality and leakage.** The file has no missing values, so nothing was
+imputed, and I found no defective segments, so no rows were excluded. I
+verified that `match` equals `male_decision` AND `female_decision` on every
+row, then dropped both decision columns, since keeping them would hand the
+model the answer. That left 24 candidate features. The ID columns are kept
+aside to build the split and are never model inputs. Every choice below was
+made with 5-fold cross-validation grouped by `event_id` on the 84 training
+events (validation and test were not used), and the number to beat is the
+naive baseline (CV PR-AUC 0.198, i.e. the match rate). All features are
+standardised with a scaler fitted on the training split only.
 
-I expected calibration to help, but grouped CV showed it slightly lowered
-PR-AUC, so I removed it.
+**Decision 1: "Both interested" features (dropped).** A match needs both
+people to say yes, so I added `min` and product features of the two people's
+ratings, plus `overall_by_male` and `overall_by_female` (the average of the
+five scorecard ratings each person gave the other). I expected them to help
+because logistic regression combines its inputs by adding them. Grouped CV
+showed no gain (0.397 vs. 0.397 for the base set), so I dropped them. The
+reason is that logistic regression doesn't add up probabilities; it adds up
+log-odds. A match happens when he says yes *and* she says yes, so
+P(match) ≈ P(he says yes) × P(she says yes), and multiplying probabilities is
+the same as adding their logarithms. An additive model of the two people's
+ratings therefore already captures "both must agree."
+
+**Decision 2: Rater calibration (dropped).** Some people rate everyone a 9, so
+I compared each rating with the rater's own average, such as "she rated him 2
+points above her usual." This is allowed in my scenario because all of a
+person's scorecards exist the morning after, and the averages use ratings
+only, never decisions. I expected calibration to help, but grouped CV showed
+it slightly lowered PR-AUC (0.394 vs. 0.397), so I removed it. One possible
+reason is that with only 6–15 dates per person, the personal average is noisy.
+
+**Decision 3: Preference-weighted ratings (kept).** I multiplied how much a
+person says they value attractiveness (and intelligence) by how attractive
+(and intelligent) they rated their partner. Stated priorities often predict
+real choices poorly, so I treated this as an experiment and kept it only if it
+improved CV PR-AUC. It improved it from 0.397 to 0.403, so I kept it. This
+was the only engineered group that helped.
+
+**Decision 4: `goes_out` encoding (ordinal).** The categories have a natural
+order (rarely = 0 to very often = 3), so one ordered column keeps that
+information with fewer features than one-hot encoding. CV showed no clear gain
+from one-hot (0.396 vs. 0.397), so I kept the ordinal version.
+
+**Decision 5: Profile features (kept).** Age, race, field and preferences are
+almost uncorrelated with matches: on their own they reach only 0.237 CV PR-AUC
+(raw ratings alone: 0.394). But removing them from the final set lowers CV
+PR-AUC from 0.403 to 0.394, so they matter in combination. The model uses them
+as context for interpreting the ratings: stated preferences get negative
+coefficients alongside the positive preference-weighted features, so the same
+rating counts differently depending on how much the person says they care
+about that attribute.
+
+Each engineered group was compared with the same base set (profile + raw
+ratings) and kept only if it raised mean CV PR-AUC. The final model uses 28
+features: the base set plus the four preference-weighted features.
+
+| Variant (grouped 5-fold CV, training events) | Features | CV ROC-AUC | CV PR-AUC (± std) |
+|---|---|---|---|
+| Naive baseline | 0 | 0.500 | 0.198 ± 0.006 |
+| Profile features only | 13 | 0.570 | 0.237 ± 0.017 |
+| Raw ratings only | 11 | 0.716 | 0.394 ± 0.008 |
+| Base: profile + raw ratings | 24 | 0.717 | 0.397 ± 0.009 |
+| Base + both-interested (dropped) | 34 | 0.718 | 0.397 ± 0.008 |
+| Base + rater calibration (dropped) | 37 | 0.715 | 0.394 ± 0.009 |
+| **Base + preference-weighted (final)** | **28** | **0.722** | **0.403 ± 0.007** |
+| Base, `goes_out` one-hot instead of ordinal (rejected) | 30 | 0.717 | 0.396 ± 0.009 |
+| Final set without profile features | 15 | 0.716 | 0.394 ± 0.008 |
 
 ## Modeling: three implementations, one model
 
@@ -51,17 +111,24 @@ comparing scikit-learn, the manual PyTorch loop, and the standard
 torch.nn.Module/torch.optim workflow, on the same test set, against the
 naive baseline. Do the three agree? If not, why not?*
 
-**Coefficient differences.** A few coefficients differ between scikit-learn
-and the two PyTorch versions (e.g. `prod_overall` −0.42 vs. −0.31,
-`overall_by_male` 0.21 vs. 0.09), even though their predictions and training
-objective are almost identical. The cause is perfect multicollinearity:
-`overall_by_male` and `overall_by_female` are exactly the average of five raw
-ratings that are also features, so many coefficient combinations give the same
-predictions. Gradient descent approaches the regularised optimum very slowly
-along this flat direction, while scikit-learn's solver reaches it. I chose to
-keep these features and explain the difference rather than drop them. Dropping
-them would make the three implementations agree more closely, but would need
-another grouped-CV check.
+**Do the three agree?** Yes. On the final 28 features, the three
+implementations reach the same training objective (0.44354), their
+coefficients differ by at most 0.001 and their test probabilities by at most
+0.0005. An earlier version with the "both interested" features did not agree
+as well: `overall_by_male` and `overall_by_female` are exact averages of five
+raw ratings that were also features (perfect multicollinearity), so many
+coefficient combinations gave the same predictions, and gradient descent
+approached the regularised optimum much more slowly along that flat direction
+than scikit-learn's solver (coefficients differed by up to 0.12). Dropping
+that group removed the problem.
+
+**Why Standard PyTorch has a different confusion matrix.** Although its
+probabilities match the other two almost exactly, its cost-minimising
+validation threshold came out at 0.22 instead of 0.29. The validation cost
+curve is very flat between those values (891–894 vs. 893), so a 2-point
+difference decides which threshold "wins." On the test set this changes the
+cost from 841 to 898. The difference comes from threshold selection on a
+small validation set (18 events), not from the model.
 
 ## Limitations & next steps
 
